@@ -1,0 +1,39 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(uint80 _roundId)\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n\n  function latestRoundData()\n    external\n    view\n    returns (\n      uint80 roundId,\n      int256 answer,\n      uint256 startedAt,\n      uint256 updatedAt,\n      uint80 answeredInRound\n    );\n}\n"
+    },
+    "contracts/FundMe.sol": {
+      "content": "//SPDX-License-Identifier:MIT\npragma solidity ^0.8.31;\nimport {AggregatorV3Interface} from \"@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol\";\n// 1. 创建一个收款函数\n// 2. 记录投资人并且查看\n// 3. 在锁定期内，达到目标值，生产商可以提款\n// 4. 在锁定期外，没有达到目标值，投资人可以退款\n\ncontract FundMe {\n    mapping(address => uint256) public fundersToAmount;\n    uint256 constant MINIMUM_VALUE = 10 * 10 ** 18;\n    uint256 public constant TARGET = 1000 * 10 ** 18;\n    AggregatorV3Interface public dataFeed;\n    address public owner;\n    uint256 deploumentTimestamp;\n    uint256 lockTime;\n    address erc20Addr;\n    bool public getFundSuccess = false;\n   \n    constructor(uint256 _lockTime,address addr){\n        dataFeed = AggregatorV3Interface(dataFeed);\n        owner = msg.sender;\n        deploumentTimestamp = block.timestamp;\n        lockTime = _lockTime;\n    }\n    function fund() external payable {\n        require(convertEthToUsd(msg.value) >= MINIMUM_VALUE, \"Send more ETH!\");\n        require(block.timestamp < deploumentTimestamp + lockTime, \"Can't fund anymore\");\n        fundersToAmount[msg.sender] += msg.value;\n    }\n    function convertEthToUsd(uint256 ethAmount) internal view returns (uint256){\n        uint256 ethPrice = uint256(getChainlinkDataFeedLatestAnswer());\n        uint256 ethAmountInUsd = ethPrice * ethAmount / (10 ** 8);\n        return ethAmountInUsd;\n    }\n\n    function getChainlinkDataFeedLatestAnswer() public view returns (int256) {\n        // prettier-ignore\n        (\n        /* uint80 roundId */\n        ,\n        int256 answer,\n        /*uint256 startedAt*/\n        ,\n        /*uint256 updatedAt*/\n        ,\n        /*uint80 answeredInRound*/\n        ) = dataFeed.latestRoundData();\n        return answer;\n    }   \n\n    function transferOwnership(address newOwner) public onlyOwner {\n        owner = newOwner;\n    }\n    \n    function getFund() external onlyOwner windowClse{\n        require(convertEthToUsd(address(this).balance) >= TARGET,\"Target is not reached\");\n        bool success;\n        (success ,) = payable(msg.sender).call{value: address(this).balance}(\"qianyejun\");\n        require(success,\"transfer fail\");\n        fundersToAmount[msg.sender] = 0;\n        getFundSuccess = true;\n    }\n    \n    function getfund1()public view returns(uint256){\n        return address(this).balance;\n        // require(convertEthToUsd(address(this).balance) >= TARGET,\"Target is not reached\");\n    }\n     function getFund2() external{\n        // payable(msg.sender).transfer(address(this).balance);\n        bool success;\n        (success ,) = payable(msg.sender).call{value: address(this).balance}(\"qianyejun\");\n\n    }\n\n    function refund() external windowClse {\n        require(convertEthToUsd(address(this).balance) < TARGET,\"Target is reached\");\n        require(fundersToAmount[msg.sender] != 0,\"you have not fund\");\n        \n        bool success;\n        (success ,) = payable(msg.sender).call{value: fundersToAmount[msg.sender]}(\"qianyejun\");\n        require(success,\"transfer tx failed\");\n        fundersToAmount[msg.sender] = 0;\n\n    }\n    function setFunderToAmount(address funder,uint256 amountToUpdate )public{\n        require(msg.sender == erc20Addr,\"you do not have permission to call this funtion\");\n        fundersToAmount[funder] = amountToUpdate;\n    }\n\n    function setErc20Addr(address _erc20addr)public onlyOwner{\n        erc20Addr = _erc20addr;\n    }\n    modifier windowClse() {\n        require(block.timestamp >= deploumentTimestamp + lockTime,\"window is not closed\");\n        _;\n    }\n    modifier onlyOwner(){\n        require(msg.sender == owner,\"not owner!\");\n        _;\n    }\n     \n}"
+    }
+  },
+  "settings": {
+    "evmVersion": "paris",
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

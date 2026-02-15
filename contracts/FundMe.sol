@@ -1,26 +1,34 @@
 //SPDX-License-Identifier:MIT
-pragma solidity >=0.8.0 <0.9.0;
-import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+pragma solidity ^0.8.31;
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+// 1. 创建一个收款函数
+// 2. 记录投资人并且查看
+// 3. 在锁定期内，达到目标值，生产商可以提款
+// 4. 在锁定期外，没有达到目标值，投资人可以退款
+
 contract FundMe {
     mapping(address => uint256) public fundersToAmount;
     uint256 constant MINIMUM_VALUE = 10 * 10 ** 18;
     uint256 public constant TARGET = 1000 * 10 ** 18;
-    AggregatorV3Interface internal dataFeed;
+    AggregatorV3Interface public dataFeed;
     address public owner;
     uint256 deploumentTimestamp;
     uint256 lockTime;
     address erc20Addr;
     bool public getFundSuccess = false;
-   
-    constructor(uint256 _lockTime){
-        dataFeed = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306);
+   event FundWithdrawByOwner(uint256);
+   event RefundByFunder(address,uint256);
+
+
+    constructor(uint256 _lockTime,address addr){
+        dataFeed = AggregatorV3Interface(addr);
         owner = msg.sender;
         deploumentTimestamp = block.timestamp;
         lockTime = _lockTime;
     }
     function fund() external payable {
         require(convertEthToUsd(msg.value) >= MINIMUM_VALUE, "Send more ETH!");
-        require(block.timestamp < deploumentTimestamp + lockTime, "Can't fund anymore");
+        require(block.timestamp < deploumentTimestamp + lockTime, "window is closed");
         fundersToAmount[msg.sender] += msg.value;
     }
     function convertEthToUsd(uint256 ethAmount) internal view returns (uint256){
@@ -51,32 +59,27 @@ contract FundMe {
     function getFund() external onlyOwner windowClse{
         require(convertEthToUsd(address(this).balance) >= TARGET,"Target is not reached");
         bool success;
-        (success ,) = payable(msg.sender).call{value: address(this).balance}("qianyejun");
+        uint256 balance =address(this).balance;
+        (success ,) = payable(msg.sender).call{value: address(this).balance}("");
         require(success,"transfer fail");
         fundersToAmount[msg.sender] = 0;
         getFundSuccess = true;
+        emit FundWithdrawByOwner(balance);
     }
     
-    function getfund1()public view returns(uint256){
-        return address(this).balance;
-        // require(convertEthToUsd(address(this).balance) >= TARGET,"Target is not reached");
-    }
-     function getFund2() external{
-        // payable(msg.sender).transfer(address(this).balance);
-        bool success;
-        (success ,) = payable(msg.sender).call{value: address(this).balance}("qianyejun");
 
-    }
-
-    function refund() external windowClse {
+    function reFund() external windowClse {
         require(convertEthToUsd(address(this).balance) < TARGET,"Target is reached");
         require(fundersToAmount[msg.sender] != 0,"you have not fund");
         
         bool success;
-        (success ,) = payable(msg.sender).call{value: fundersToAmount[msg.sender]}("qianyejun");
-        require(success,"transfer tx failed");
+        uint256 balance = fundersToAmount[msg.sender];
+        require(balance > 0,"balance is null");
+        
         fundersToAmount[msg.sender] = 0;
-
+        (success ,) = payable(msg.sender).call{value: balance}("");
+        require(success,"transfer tx failed");
+        emit RefundByFunder(msg.sender,balance);
     }
     function setFunderToAmount(address funder,uint256 amountToUpdate )public{
         require(msg.sender == erc20Addr,"you do not have permission to call this funtion");
@@ -94,5 +97,5 @@ contract FundMe {
         require(msg.sender == owner,"not owner!");
         _;
     }
-     
+    
 }

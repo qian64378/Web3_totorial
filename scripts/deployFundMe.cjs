@@ -1,4 +1,4 @@
-// const { ethers, run } = require("hardhat");
+const { ethers, run } = require("hardhat");
 
 // 封装充值函数（带异常处理）
 async function fundContract(fundMeContract, signer, amountEth, accountName) {
